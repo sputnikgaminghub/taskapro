@@ -883,6 +883,47 @@ def complete_task():
     
     return process_task_completion(wallet_address, task_id, task_def)
 
+@app.route('/api/db-info', methods=['GET'])
+def db_info():
+    """Show database information"""
+    db_url = app.config["SQLALCHEMY_DATABASE_URI"]
+    db_type = "PostgreSQL" if "postgresql" in db_url else "SQLite"
+    
+    with app.app_context():
+        try:
+            # Count records in each table
+            counts = {
+                'users': User.query.count(),
+                'airdrop_claims': AirdropClaim.query.count(),
+                'referrals': Referral.query.count(),
+                'achievements': Achievement.query.count(),
+                'notifications': Notification.query.count(),
+                'presale_transactions': PresaleTransaction.query.count(),
+                'tasks': Task.query.count(),
+                'user_tasks': UserTask.query.count(),
+                'daily_streaks': DailyStreak.query.count(),
+            }
+            
+            return jsonify({
+                'success': True,
+                'database': {
+                    'type': db_type,
+                    'connected': True,
+                    'url_masked': '...' + db_url[-30:] if len(db_url) > 30 else db_url,
+                    'table_counts': counts
+                }
+            })
+        except Exception as e:
+            return jsonify({
+                'success': False,
+                'error': str(e),
+                'database': {
+                    'type': db_type,
+                    'connected': False,
+                    'url_masked': '...' + db_url[-30:] if len(db_url) > 30 else db_url
+                }
+            })
+            
 @app.route('/api/tasks/submit-verification', methods=['POST'])
 @limiter.limit("5 per minute")
 def submit_verification():
