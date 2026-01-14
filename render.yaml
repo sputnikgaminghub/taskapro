@@ -1,0 +1,31 @@
+services:
+  - type: web
+    name: apro-token
+    env: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn app:app
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: apro-database
+          property: connectionString
+      - key: SECRET_KEY
+        generateValue: true
+      - key: ADMIN_WALLET
+        value: "0x742d35Cc6634C0532925a3b844Bc9e90"
+      - key: ADMIN_API_KEY
+        value: "admin123"
+      - key: MAX_WALLETS_PER_IP
+        value: "5"
+      - key: IP_BAN_HOURS
+        value: "24"
+      - key: PRESALE_WALLET
+        value: "0xa84e6D0Fa3B35b18FF7C65568C711A85Ac1A9FC7"
+      - key: FLASK_ENV
+        value: "production"
+
+databases:
+  - name: apro-database
+    databaseName: aprodb
+    user: aprouser
+    plan: free
