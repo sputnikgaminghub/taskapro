@@ -22,11 +22,19 @@ class Base(DeclarativeBase):
 db = SQLAlchemy(model_class=Base)
 app = Flask(__name__)
 
-# Configuration
-app.config["SQLALCHEMY_DATABASE_URI"] = os.getenv('DATABASE_URL', 'sqlite:///airdrop.db')
+# Configuration - PostgreSQL for Render
+database_url = os.getenv('DATABASE_URL')
+if database_url and database_url.startswith('postgres://'):
+    # Convert postgres:// to postgresql:// for SQLAlchemy
+    database_url = database_url.replace('postgres://', 'postgresql://', 1)
+
+app.config["SQLALCHEMY_DATABASE_URI"] = database_url or 'sqlite:///airdrop.db'
 app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {
     "pool_recycle": 300,
     "pool_pre_ping": True,
+    "connect_args": {
+        'sslmode': 'require' if 'render.com' in (database_url or '') else 'prefer'
+    }
 }
 app.config["SECRET_KEY"] = os.getenv('SECRET_KEY', 'dev-secret-key-change-in-production')
 app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(hours=1)
