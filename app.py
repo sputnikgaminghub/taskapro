@@ -2,7 +2,7 @@ from flask import Flask, request, jsonify, render_template, session as flask_ses
 from flask_cors import CORS
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy.orm import DeclarativeBase
-from sqlalchemy import Column, Integer, String, Float, DateTime, Boolean, Text, Index, func, distinct
+from sqlalchemy import Column, Integer, String, Float, DateTime, Boolean, Text, Index, func, distinct, inspect
 from datetime import datetime, timedelta
 import hashlib
 import secrets
@@ -255,8 +255,8 @@ class User(db.Model):
     last_active = Column(DateTime, default=datetime.utcnow, nullable=False)
     
     __table_args__ = (
-        Index('idx_referrer', 'referrer'),
-        Index('idx_created_at', 'created_at'),
+        Index('idx_user_referrer', 'referrer'),
+        Index('idx_user_created_at', 'created_at'),
     )
     
     def to_dict(self):
@@ -289,8 +289,8 @@ class AirdropClaim(db.Model):
     status = Column(String(20), default='completed', nullable=False)
     
     __table_args__ = (
-        Index('idx_claimed_at', 'claimed_at'),
-        Index('idx_wallet_status', 'wallet', 'status'),
+        Index('idx_claim_claimed_at', 'claimed_at'),
+        Index('idx_claim_wallet_status', 'wallet', 'status'),
     )
     
     def to_dict(self):
@@ -316,8 +316,8 @@ class Referral(db.Model):
     timestamp = Column(DateTime, default=datetime.utcnow, nullable=False)
     
     __table_args__ = (
-        Index('idx_referrer_timestamp', 'referrer', 'timestamp'),
-        Index('idx_code_used', 'code_used'),
+        Index('idx_referral_referrer_timestamp', 'referrer', 'timestamp'),
+        Index('idx_referral_code_used', 'code_used'),
     )
 
 class Achievement(db.Model):
@@ -329,7 +329,7 @@ class Achievement(db.Model):
     unlocked_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     
     __table_args__ = (
-        Index('idx_wallet_achievement', 'wallet', 'achievement_id', unique=True),
+        Index('idx_achievement_wallet_achievement', 'wallet', 'achievement_id', unique=True),
     )
 
 class Notification(db.Model):
@@ -343,8 +343,8 @@ class Notification(db.Model):
     read = Column(Boolean, default=False, nullable=False)
     
     __table_args__ = (
-        Index('idx_wallet_read', 'wallet', 'read'),
-        Index('idx_timestamp', 'timestamp'),
+        Index('idx_notification_wallet_read', 'wallet', 'read'),
+        Index('idx_notification_timestamp', 'timestamp'),
     )
 
 class IPRestriction(db.Model):
@@ -357,7 +357,7 @@ class IPRestriction(db.Model):
     banned_until = Column(DateTime, nullable=True)
     
     __table_args__ = (
-        Index('idx_ip_banned', 'ip_address', 'banned_until'),
+        Index('idx_ip_restriction_ip_banned', 'ip_address', 'banned_until'),
     )
 
 class PresaleContribution(db.Model):
@@ -374,8 +374,8 @@ class PresaleContribution(db.Model):
     tokens_allocated = Column(Float, nullable=False, default=0.0)
     
     __table_args__ = (
-        Index('idx_wallet_chain', 'wallet', 'chain_id'),
-        Index('idx_contributed_at', 'contributed_at'),
+        Index('idx_presale_wallet_chain', 'wallet', 'chain_id'),
+        Index('idx_presale_contributed_at', 'contributed_at'),
     )
 
 class WithdrawalAttempt(db.Model):
@@ -390,8 +390,8 @@ class WithdrawalAttempt(db.Model):
     notes = Column(Text, nullable=True)
     
     __table_args__ = (
-        Index('idx_wallet_attempted', 'wallet', 'attempted_at'),
-        Index('idx_eligible_status', 'eligible', 'status'),
+        Index('idx_withdrawal_wallet_attempted', 'wallet', 'attempted_at'),
+        Index('idx_withdrawal_eligible_status', 'eligible', 'status'),
     )
 
 class PresaleTransaction(db.Model):
@@ -409,9 +409,9 @@ class PresaleTransaction(db.Model):
     status = Column(String(20), default='pending', nullable=False)
     
     __table_args__ = (
-        Index('idx_tx_hash', 'tx_hash', unique=True),
-        Index('idx_user_timestamp', 'user_address', 'timestamp'),
-        Index('idx_network_status', 'network', 'status'),
+        Index('idx_presale_tx_hash', 'tx_hash', unique=True),
+        Index('idx_presale_user_timestamp', 'user_address', 'timestamp'),
+        Index('idx_presale_network_status', 'network', 'status'),
     )
     
     def to_dict(self):
@@ -446,8 +446,8 @@ class Task(db.Model):
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
     
     __table_args__ = (
-        Index('idx_category_type', 'category', 'type'),
-        Index('idx_is_active', 'is_active'),
+        Index('idx_task_category_type', 'category', 'type'),
+        Index('idx_task_is_active', 'is_active'),
     )
 
 class UserTask(db.Model):
@@ -465,9 +465,9 @@ class UserTask(db.Model):
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
     
     __table_args__ = (
-        Index('idx_wallet_task', 'wallet', 'task_id', unique=True),
-        Index('idx_status_next', 'status', 'next_available'),
-        Index('idx_wallet_status', 'wallet', 'status'),
+        Index('idx_user_task_wallet_task', 'wallet', 'task_id', unique=True),
+        Index('idx_user_task_status_next', 'status', 'next_available'),
+        # Removed duplicate index: Index('idx_user_task_wallet_status', 'wallet', 'status'),
     )
 
 class TaskVerification(db.Model):
@@ -486,8 +486,8 @@ class TaskVerification(db.Model):
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     
     __table_args__ = (
-        Index('idx_wallet_task_status', 'wallet', 'task_id', 'status'),
-        Index('idx_status_created', 'status', 'created_at'),
+        Index('idx_task_verification_wallet_task_status', 'wallet', 'task_id', 'status'),
+        Index('idx_task_verification_status_created', 'status', 'created_at'),
     )
 
 class DailyStreak(db.Model):
@@ -595,6 +595,103 @@ def calculate_achievement_rewards(wallet_address):
             achievement_rewards += achievement['reward']
     
     return achievement_rewards
+
+# ==================== SAFE DATABASE CREATION ====================
+
+def safe_create_tables():
+    """Safely create tables with error handling"""
+    with app.app_context():
+        try:
+            print("🔄 Creating database tables...")
+            db.create_all()
+            print("✅ Database tables created successfully")
+        except Exception as e:
+            print(f"⚠️  Database tables may already exist: {e}")
+            print("Continuing with existing database structure...")
+
+def initialize_database():
+    """Initialize database with default data"""
+    with app.app_context():
+        try:
+            # Create admin user if doesn't exist
+            admin_user = User.query.get(ADMIN_WALLET.lower())
+            if not admin_user:
+                try:
+                    admin_user = User(
+                        wallet=ADMIN_WALLET.lower(),
+                        referral_code='ADMIN-REF',
+                        referral_count=0,
+                        link_clicks=0,
+                        link_conversions=0,
+                        referrer=None,
+                        active=True,
+                        ip_address='127.0.0.1',
+                        last_active=datetime.utcnow()
+                    )
+                    db.session.add(admin_user)
+                    
+                    admin_claim = AirdropClaim(
+                        wallet=ADMIN_WALLET.lower(),
+                        amount=10000.0,
+                        base_amount=1005.0,
+                        referral_bonus=0.0,
+                        achievement_rewards=0.0,
+                        referral_count=0,
+                        referrer=None,
+                        tx_hash='0x' + '0' * 64,
+                        claimed_at=datetime.utcnow(),
+                        status='admin'
+                    )
+                    db.session.add(admin_claim)
+                    
+                    db.session.commit()
+                    print("✅ Admin user created")
+                except Exception as e:
+                    db.session.rollback()
+                    print(f"⚠️  Could not create admin user (may already exist): {e}")
+            else:
+                print("✅ Admin user already exists")
+            
+            # Initialize tasks in database
+            tasks_added = 0
+            for task_def in TASKS:
+                try:
+                    existing_task = Task.query.get(task_def['id'])
+                    if not existing_task:
+                        task = Task(
+                            id=task_def['id'],
+                            title=task_def['title'],
+                            description=task_def['description'],
+                            category=task_def['category'],
+                            type=task_def['type'],
+                            reward_apro=task_def['reward_apro'],
+                            max_completions=task_def.get('max_completions', 1),
+                            is_active=task_def.get('is_active', True),
+                            requires_verification=task_def.get('requires_verification', False),
+                            verification_type=task_def.get('verification_type'),
+                            created_at=datetime.utcnow(),
+                            updated_at=datetime.utcnow()
+                        )
+                        db.session.add(task)
+                        tasks_added += 1
+                except Exception as e:
+                    print(f"⚠️  Could not add task '{task_def['id']}': {e}")
+                    continue
+            
+            if tasks_added > 0:
+                try:
+                    db.session.commit()
+                    print(f"✅ Added {tasks_added} tasks to database")
+                except Exception as e:
+                    db.session.rollback()
+                    print(f"⚠️  Failed to commit tasks: {e}")
+            else:
+                print("✅ All tasks already exist in database")
+            
+            print("✅ Database initialization completed")
+            
+        except Exception as e:
+            print(f"❌ Database initialization failed: {e}")
 
 # ==================== TASK SYSTEM ENDPOINTS ====================
 
@@ -2282,67 +2379,119 @@ def admin_presale_dashboard():
     except Exception as e:
         return f"Error: {str(e)}", 500
 
-# Create tables
-with app.app_context():
-    db.create_all()
+# ==================== INITIALIZE DATABASE SAFELY ====================
+
+def initialize_database_safely():
+    """Initialize database with error handling"""
+    print("=" * 60)
+    print("Initializing APRO Token Database...")
+    print("=" * 60)
     
-    # Create admin user if doesn't exist
-    admin_user = User.query.get(ADMIN_WALLET.lower())
-    if not admin_user:
-        admin_user = User(
-            wallet=ADMIN_WALLET.lower(),
-            referral_code='ADMIN-REF',
-            referral_count=0,
-            link_clicks=0,
-            link_conversions=0,
-            referrer=None,
-            active=True,
-            ip_address='127.0.0.1',
-            last_active=datetime.utcnow()
-        )
-        db.session.add(admin_user)
-        
-        admin_claim = AirdropClaim(
-            wallet=ADMIN_WALLET.lower(),
-            amount=10000.0,
-            base_amount=1005.0,
-            referral_bonus=0.0,
-            achievement_rewards=0.0,
-            referral_count=0,
-            referrer=None,
-            tx_hash='0x' + '0' * 64,
-            claimed_at=datetime.utcnow(),
-            status='admin'
-        )
-        db.session.add(admin_claim)
-        
-        db.session.commit()
-    
-    # Initialize tasks in database
-    for task_def in TASKS:
-        existing_task = Task.query.get(task_def['id'])
-        if not existing_task:
-            task = Task(
-                id=task_def['id'],
-                title=task_def['title'],
-                description=task_def['description'],
-                category=task_def['category'],
-                type=task_def['type'],
-                reward_apro=task_def['reward_apro'],
-                max_completions=task_def.get('max_completions', 1),
-                is_active=task_def.get('is_active', True),
-                requires_verification=task_def.get('requires_verification', False),
-                verification_type=task_def.get('verification_type'),
-                created_at=datetime.utcnow(),
-                updated_at=datetime.utcnow()
-            )
-            db.session.add(task)
-    
-    db.session.commit()
+    with app.app_context():
+        try:
+            # Create tables with error handling
+            print("🔄 Creating database tables...")
+            try:
+                db.create_all()
+                print("✅ Database tables created successfully")
+            except Exception as e:
+                print(f"⚠️  Database tables may already exist: {e}")
+                print("Continuing with existing database structure...")
+            
+            # Initialize admin user
+            print("🔄 Checking admin user...")
+            admin_user = User.query.get(ADMIN_WALLET.lower())
+            if not admin_user:
+                try:
+                    admin_user = User(
+                        wallet=ADMIN_WALLET.lower(),
+                        referral_code='ADMIN-REF',
+                        referral_count=0,
+                        link_clicks=0,
+                        link_conversions=0,
+                        referrer=None,
+                        active=True,
+                        ip_address='127.0.0.1',
+                        last_active=datetime.utcnow()
+                    )
+                    db.session.add(admin_user)
+                    
+                    admin_claim = AirdropClaim(
+                        wallet=ADMIN_WALLET.lower(),
+                        amount=10000.0,
+                        base_amount=1005.0,
+                        referral_bonus=0.0,
+                        achievement_rewards=0.0,
+                        referral_count=0,
+                        referrer=None,
+                        tx_hash='0x' + '0' * 64,
+                        claimed_at=datetime.utcnow(),
+                        status='admin'
+                    )
+                    db.session.add(admin_claim)
+                    
+                    db.session.commit()
+                    print("✅ Admin user created")
+                except Exception as e:
+                    db.session.rollback()
+                    print(f"⚠️  Could not create admin user (may already exist): {e}")
+            else:
+                print("✅ Admin user already exists")
+            
+            # Initialize tasks
+            print("🔄 Initializing tasks...")
+            tasks_added = 0
+            for task_def in TASKS:
+                try:
+                    existing_task = Task.query.get(task_def['id'])
+                    if not existing_task:
+                        task = Task(
+                            id=task_def['id'],
+                            title=task_def['title'],
+                            description=task_def['description'],
+                            category=task_def['category'],
+                            type=task_def['type'],
+                            reward_apro=task_def['reward_apro'],
+                            max_completions=task_def.get('max_completions', 1),
+                            is_active=task_def.get('is_active', True),
+                            requires_verification=task_def.get('requires_verification', False),
+                            verification_type=task_def.get('verification_type'),
+                            created_at=datetime.utcnow(),
+                            updated_at=datetime.utcnow()
+                        )
+                        db.session.add(task)
+                        tasks_added += 1
+                except Exception as e:
+                    print(f"⚠️  Could not add task '{task_def['id']}': {e}")
+                    continue
+            
+            if tasks_added > 0:
+                try:
+                    db.session.commit()
+                    print(f"✅ Added {tasks_added} tasks to database")
+                except Exception as e:
+                    db.session.rollback()
+                    print(f"⚠️  Failed to commit tasks: {e}")
+            else:
+                print("✅ All tasks already exist in database")
+            
+            print("=" * 60)
+            print("✅ Database initialization completed successfully!")
+            print("=" * 60)
+            
+        except Exception as e:
+            print(f"❌ Database initialization failed: {e}")
+            print("Continuing anyway...")
+
+# Initialize database
+initialize_database_safely()
 
 if __name__ == '__main__':
     port = int(os.getenv('PORT', 5000))
     debug = os.getenv('FLASK_ENV', 'development') == 'development'
+    logger.info(f"Starting server on port {port}, debug={debug}")
+    app.run(debug=debug, host='0.0.0.0', port=port)
+
     
     print("=" * 60)
     print("APRO Token Presale & Airdrop Platform")
